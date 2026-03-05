@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+mlruns/
+mlflow.db
+data/
+models/*.pt
+models/scaler.pkl
+models/input_dim.txt
