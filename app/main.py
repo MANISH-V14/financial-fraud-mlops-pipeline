@@ -1,20 +1,29 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List
 import torch
 import os
 import re
 import joblib
+
 from src.model import FraudNet
 
 # -----------------------------
-# Initialize FastAPI FIRST
+# Initialize FastAPI
 # -----------------------------
-app = FastAPI()
+app = FastAPI(title="Financial Fraud Detection API")
 
 MODEL_DIR = "models"
+
 model = None
 scaler = None
+input_dim = None
+threshold = None
 
 
+# -----------------------------
+# Utility: Get Latest Model
+# -----------------------------
 def get_latest_model():
     files = os.listdir(MODEL_DIR)
     versions = []
@@ -32,18 +41,25 @@ def get_latest_model():
 
 
 # -----------------------------
-# Load model + scaler at startup
+# Startup: Load Everything Once
 # -----------------------------
 @app.on_event("startup")
-def load_model():
-    global model
-    global scaler
+def load_artifacts():
+    global model, scaler, input_dim, threshold
 
     model_path = get_latest_model()
 
     # Load input dimension
-    with open("models/input_dim.txt", "r") as f:
+    with open(os.path.join(MODEL_DIR, "input_dim.txt"), "r") as f:
         input_dim = int(f.read().strip())
+
+    # Load threshold (fallback if not present)
+    threshold_path = os.path.join(MODEL_DIR, "threshold.txt")
+    if os.path.exists(threshold_path):
+        with open(threshold_path, "r") as f:
+            threshold = float(f.read().strip())
+    else:
+        threshold = 0.6  # fallback
 
     # Initialize model
     model_instance = FraudNet(input_dim)
@@ -55,44 +71,68 @@ def load_model():
     model = model_instance
 
     # Load scaler
-    scaler = joblib.load("models/scaler.pkl")
+    scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
 
 
 # -----------------------------
-# Health Check
+# Health Endpoint
 # -----------------------------
 @app.get("/")
 def health():
-    return {"status": "Fraud MLOps API running"}
+    return {
+        "status": "Fraud MLOps API running",
+        "model_loaded": model is not None,
+        "scaler_loaded": scaler is not None
+    }
+
+
+# -----------------------------
+# Metrics Endpoint
+# -----------------------------
+@app.get("/metrics")
+def metrics():
+    return {
+        "input_dimension": input_dim,
+        "decision_threshold": threshold
+    }
+
+
+# -----------------------------
+# Request / Response Schemas
+# -----------------------------
+class FraudRequest(BaseModel):
+    features: List[float]
+
+
+class FraudResponse(BaseModel):
+    fraud_probability: float
+    prediction: int
 
 
 # -----------------------------
 # Prediction Endpoint
 # -----------------------------
-from pydantic import BaseModel
-from typing import List
+@app.post("/predict", response_model=FraudResponse)
+def predict(request: FraudRequest):
+    global model, scaler, input_dim, threshold
 
-class FeatureInput(BaseModel):
-    features: List[float]
+    if model is None or scaler is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
 
+    if len(request.features) != input_dim:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Expected {input_dim} features, got {len(request.features)}"
+        )
 
-@app.post("/predict")
-def predict(data: FeatureInput):
-    global model, scaler
-
-    features = data.features
-
-    if len(features) != int(open("models/input_dim.txt").read().strip()):
-        return {"error": "Feature length mismatch"}
-
-    scaled = scaler.transform([features])
+    scaled = scaler.transform([request.features])
     x = torch.tensor(scaled, dtype=torch.float32)
 
     with torch.no_grad():
         output = model(x)
         prob = torch.sigmoid(output).item()
 
-    return {
-        "fraud_probability": prob,
-        "prediction": 1 if prob > 0.6 else 0
-    }
+    return FraudResponse(
+        fraud_probability=round(prob, 4),
+        prediction=int(prob > threshold)
+    )
