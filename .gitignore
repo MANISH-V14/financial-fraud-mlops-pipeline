@@ -1,17 +1,8 @@
-# Virtual environment
-venv/
-
-# Python cache
 __pycache__/
 *.pyc
-
-# MLflow experiment tracking
+venv/
 mlruns/
 mlflow.db
-
-# Dataset (too large for GitHub)
 data/
-
-# OS files
+*.csv
 .DS_Store
-Thumbs.db
