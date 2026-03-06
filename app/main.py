@@ -1,138 +1,120 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List
-import torch
+import xgboost as xgb
+import joblib
 import os
 import re
-import joblib
-
-from src.model import FraudNet
+from pydantic import BaseModel
+from typing import List
+import numpy as np
 
 # -----------------------------
 # Initialize FastAPI
 # -----------------------------
-app = FastAPI(title="Financial Fraud Detection API")
+app = FastAPI()
 
 MODEL_DIR = "models"
 
 model = None
 scaler = None
+threshold = 0.5
 input_dim = None
-threshold = None
 
 
 # -----------------------------
-# Utility: Get Latest Model
+# Utility: Get Latest Versioned Model
 # -----------------------------
 def get_latest_model():
+    if not os.path.exists(MODEL_DIR):
+        raise Exception("Models directory not found.")
+
     files = os.listdir(MODEL_DIR)
     versions = []
 
     for f in files:
-        match = re.search(r"model_v(\d+)\.pt", f)
+        match = re.search(r"model_v(\d+)\.json", f)
         if match:
             versions.append(int(match.group(1)))
 
     if not versions:
-        raise Exception("No model versions found.")
+        raise Exception("No versioned XGBoost models found.")
 
     latest_version = max(versions)
-    return f"{MODEL_DIR}/model_v{latest_version}.pt"
+    return f"{MODEL_DIR}/model_v{latest_version}.json"
 
 
 # -----------------------------
-# Startup: Load Everything Once
+# Load Model at Startup
 # -----------------------------
 @app.on_event("startup")
-def load_artifacts():
-    global model, scaler, input_dim, threshold
+def load_model():
+    global model, scaler, threshold, input_dim
 
     model_path = get_latest_model()
 
-    # Load input dimension
-    with open(os.path.join(MODEL_DIR, "input_dim.txt"), "r") as f:
-        input_dim = int(f.read().strip())
+    model = xgb.XGBClassifier()
+    model.load_model(model_path)
 
-    # Load threshold (fallback if not present)
+    scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
     threshold_path = os.path.join(MODEL_DIR, "threshold.txt")
-    if os.path.exists(threshold_path):
-        with open(threshold_path, "r") as f:
-            threshold = float(f.read().strip())
-    else:
-        threshold = 0.6  # fallback
 
-    # Initialize model
-    model_instance = FraudNet(input_dim)
-    model_instance.load_state_dict(
-        torch.load(model_path, map_location="cpu")
-    )
-    model_instance.eval()
+    if not os.path.exists(scaler_path):
+        raise Exception("Scaler file not found.")
 
-    model = model_instance
+    if not os.path.exists(threshold_path):
+        raise Exception("Threshold file not found.")
 
-    # Load scaler
-    scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
+    scaler = joblib.load(scaler_path)
+
+    with open(threshold_path, "r") as f:
+        threshold = float(f.read().strip())
+
+    input_dim = scaler.n_features_in_
+
+    print("Loaded model:", model_path)
+    print("Threshold:", threshold)
+    print("Input dimension:", input_dim)
 
 
 # -----------------------------
-# Health Endpoint
+# Health Check
 # -----------------------------
 @app.get("/")
 def health():
-    return {
-        "status": "Fraud MLOps API running",
-        "model_loaded": model is not None,
-        "scaler_loaded": scaler is not None
-    }
+    return {"status": "Fraud XGBoost API running"}
 
 
 # -----------------------------
-# Metrics Endpoint
+# Request Schema
 # -----------------------------
-@app.get("/metrics")
-def metrics():
-    return {
-        "input_dimension": input_dim,
-        "decision_threshold": threshold
-    }
-
-
-# -----------------------------
-# Request / Response Schemas
-# -----------------------------
-class FraudRequest(BaseModel):
+class FeatureInput(BaseModel):
     features: List[float]
-
-
-class FraudResponse(BaseModel):
-    fraud_probability: float
-    prediction: int
 
 
 # -----------------------------
 # Prediction Endpoint
 # -----------------------------
-@app.post("/predict", response_model=FraudResponse)
-def predict(request: FraudRequest):
-    global model, scaler, input_dim, threshold
+@app.post("/predict")
+def predict(data: FeatureInput):
 
     if model is None or scaler is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
+        raise HTTPException(status_code=500, detail="Model not loaded.")
 
-    if len(request.features) != input_dim:
+    features = data.features
+
+    if len(features) != input_dim:
         raise HTTPException(
             status_code=400,
-            detail=f"Expected {input_dim} features, got {len(request.features)}"
+            detail=f"Feature length mismatch. Expected {input_dim}, got {len(features)}"
         )
 
-    scaled = scaler.transform([request.features])
-    x = torch.tensor(scaled, dtype=torch.float32)
+    features_array = np.array(features).reshape(1, -1)
 
-    with torch.no_grad():
-        output = model(x)
-        prob = torch.sigmoid(output).item()
+    scaled = scaler.transform(features_array)
+    prob = model.predict_proba(scaled)[0][1]
 
-    return FraudResponse(
-        fraud_probability=round(prob, 4),
-        prediction=int(prob > threshold)
-    )
+    prediction = 1 if prob > threshold else 0
+
+    return {
+        "fraud_probability": float(prob),
+        "prediction": prediction
+    }
