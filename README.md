@@ -4,6 +4,24 @@ Live API: https://financial-fraud-mlops-pipeline.onrender.com/
 
 API Docs (Swagger): https://financial-fraud-mlops-pipeline.onrender.com/docs
 
+*How to Test the API
+
+Open Swagger Docs
+
+Click POST /predict
+
+Click “Try it out”
+
+Paste this sample input:
+
+{
+"features": [0.12, -1.45, 2.33, 0.77, -0.56, 1.12, 0.44, -0.91, 0.35]
+}
+
+Click Execute
+
+You’ll get fraud probability and prediction.
+
 Overview
 
 *This project implements a production-grade fraud detection pipeline using machine learning and modern MLOps practices.
