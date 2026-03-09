@@ -7,22 +7,15 @@ from pydantic import BaseModel
 from typing import List
 import numpy as np
 
-# -----------------------------
-# Initialize FastAPI
-# -----------------------------
 app = FastAPI()
 
 MODEL_DIR = "models"
-
 model = None
 scaler = None
 threshold = 0.5
 input_dim = None
 
 
-# -----------------------------
-# Utility: Get Latest Versioned Model
-# -----------------------------
 def get_latest_model():
     if not os.path.exists(MODEL_DIR):
         raise Exception("Models directory not found.")
@@ -42,9 +35,6 @@ def get_latest_model():
     return f"{MODEL_DIR}/model_v{latest_version}.json"
 
 
-# -----------------------------
-# Load Model at Startup
-# -----------------------------
 @app.on_event("startup")
 def load_model():
     global model, scaler, threshold, input_dim
@@ -54,45 +44,27 @@ def load_model():
     model = xgb.XGBClassifier()
     model.load_model(model_path)
 
-    scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
-    threshold_path = os.path.join(MODEL_DIR, "threshold.txt")
+    scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
 
-    if not os.path.exists(scaler_path):
-        raise Exception("Scaler file not found.")
-
-    if not os.path.exists(threshold_path):
-        raise Exception("Threshold file not found.")
-
-    scaler = joblib.load(scaler_path)
-
-    with open(threshold_path, "r") as f:
+    with open(os.path.join(MODEL_DIR, "threshold.txt"), "r") as f:
         threshold = float(f.read().strip())
 
     input_dim = scaler.n_features_in_
 
-    print("Loaded model:", model_path)
+    print("Model loaded:", model_path)
     print("Threshold:", threshold)
     print("Input dimension:", input_dim)
 
 
-# -----------------------------
-# Health Check
-# -----------------------------
 @app.get("/")
 def health():
     return {"status": "Fraud XGBoost API running"}
 
 
-# -----------------------------
-# Request Schema
-# -----------------------------
 class FeatureInput(BaseModel):
     features: List[float]
 
 
-# -----------------------------
-# Prediction Endpoint
-# -----------------------------
 @app.post("/predict")
 def predict(data: FeatureInput):
 
@@ -108,10 +80,9 @@ def predict(data: FeatureInput):
         )
 
     features_array = np.array(features).reshape(1, -1)
-
     scaled = scaler.transform(features_array)
-    prob = model.predict_proba(scaled)[0][1]
 
+    prob = model.predict_proba(scaled)[0][1]
     prediction = 1 if prob > threshold else 0
 
     return {
