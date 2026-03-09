@@ -1,4 +1,4 @@
-Financial Fraud Detection – Production MLOps Pipeline
+-Financial Fraud Detection – Production MLOps Pipeline
 
 Live API: https://financial-fraud-mlops-pipeline.onrender.com/
 
@@ -6,11 +6,11 @@ API Docs (Swagger): https://financial-fraud-mlops-pipeline.onrender.com/docs
 
 Overview
 
-This project implements a production-grade fraud detection pipeline using machine learning and modern MLOps practices.
+*This project implements a production-grade fraud detection pipeline using machine learning and modern MLOps practices.
 
 The dataset contains highly imbalanced credit card transaction data (≈0.4% fraud rate). The objective was to design a robust fraud classification system, compare modeling approaches, optimize decision thresholds, and deploy the best-performing model as a cloud-based API.
 
-Problem Statement
+*Problem Statement
 
 Fraud detection presents two major challenges:
 
@@ -24,7 +24,7 @@ High recall (catch fraudulent transactions)
 
 Acceptable precision (minimize false alerts)
 
-Model Comparison
+8Model Comparison
 
 Two modeling approaches were evaluated:
 
@@ -58,7 +58,7 @@ ROC-AUC: 0.993
 
 XGBoost significantly outperformed the neural network for tabular fraud detection data.
 
-Key Engineering Decisions
+*Key Engineering Decisions
 
 Used scale_pos_weight instead of SMOTE to avoid synthetic noise
 
@@ -70,7 +70,7 @@ Compared deep learning vs gradient boosting
 
 Selected tree-based model for production deployment
 
-Architecture
+*Architecture
 
 Training Pipeline:
 
@@ -96,7 +96,7 @@ CI/CD via GitHub
 
 Cloud deployment on Render
 
-API Usage
+*API Usage
 Health Check
 
 GET /
@@ -106,7 +106,7 @@ Response:
 {
   "status": "Fraud XGBoost API running"
 }
-Prediction
+*Prediction
 
 POST /predict
 
@@ -122,7 +122,7 @@ Response:
   "fraud_probability": 0.87,
   "prediction": 1
 }
-Project Structure
+*Project Structure
 app/
   main.py               # FastAPI deployment layer
 src/
@@ -136,7 +136,7 @@ models/
   threshold.txt
 Dockerfile
 requirements.txt
-Technologies Used
+*Technologies Used
 
 Python
 
@@ -154,7 +154,7 @@ Docker
 
 Render (Cloud Deployment)
 
-What This Project Demonstrates
+*What This Project Demonstrates
 
 Handling extreme class imbalance
 
@@ -170,7 +170,7 @@ Containerized ML API
 
 CI/CD deployment workflow
 
-Future Improvements
+*Future Improvements
 
 Real-time streaming fraud detection (Kafka)
 
