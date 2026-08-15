@@ -1,151 +1,105 @@
--Financial Fraud Detection – Production MLOps Pipeline
+# Financial Fraud Detection - Production MLOps Pipeline
 
-Live API: https://financial-fraud-mlops-pipeline.onrender.com/
+A production-style fraud classification project focused on extreme class imbalance, model comparison, decision-threshold optimization, experiment tracking, and API deployment.
 
-API Docs (Swagger): https://financial-fraud-mlops-pipeline.onrender.com/docs
+## Live API
 
-*How to Test the API
+**API:** https://financial-fraud-mlops-pipeline.onrender.com/
 
-Open Swagger Docs
+**Swagger docs:** https://financial-fraud-mlops-pipeline.onrender.com/docs
 
-Click POST /predict
+## Problem Statement
 
-Click “Try it out”
+The dataset contains highly imbalanced credit-card transaction data, with an approximate 258:1 ratio of non-fraud to fraud observations. In this setting, overall accuracy can hide poor fraud detection performance.
 
-Paste this sample input:
+The main objective is therefore to balance:
 
-{
-"features": [0.12, -1.45, 2.33, 0.77, -0.56, 1.12, 0.44, -0.91, 0.35]
-}
+- **Recall:** catch a useful share of fraudulent transactions
+- **Precision:** limit unnecessary false-positive alerts
 
-Click Execute
+## Model Comparison
 
-You’ll get fraud probability and prediction.
+Two modeling approaches were evaluated.
 
-Overview
+### 1. Neural Network
 
-*This project implements a production-grade fraud detection pipeline using machine learning and modern MLOps practices.
+- PyTorch implementation
+- `BCEWithLogitsLoss` with class weighting
+- Threshold tuning using the precision-recall curve
+- ROC-AUC of approximately 0.82
 
-The dataset contains highly imbalanced credit card transaction data (≈0.4% fraud rate). The objective was to design a robust fraud classification system, compare modeling approaches, optimize decision thresholds, and deploy the best-performing model as a cloud-based API.
+### 2. XGBoost - Production Model
 
-*Problem Statement
+- `scale_pos_weight` for imbalance handling
+- Precision-recall threshold optimization
+- MLflow experiment tracking
+- Versioned model artifacts
 
-Fraud detection presents two major challenges:
+### Reported XGBoost Performance
 
-Extreme class imbalance (≈258:1 non-fraud to fraud ratio)
+| Metric | Score |
+| --- | ---: |
+| Precision | 0.79 |
+| Recall | 0.61 |
+| F1 Score | 0.69 |
+| ROC-AUC | 0.993 |
 
-Precision vs Recall tradeoff in financial systems
+For this tabular dataset, XGBoost produced stronger reported results than the neural-network baseline and was selected for deployment.
 
-Accuracy is not a meaningful metric in this scenario. The system must balance:
+## Key Engineering Decisions
 
-High recall (catch fraudulent transactions)
+- Used `scale_pos_weight` rather than synthetic oversampling in the production model
+- Tuned the classification threshold using the precision-recall tradeoff
+- Prioritized precision, recall, F1, and ROC-AUC over raw accuracy
+- Benchmarked deep learning against gradient boosting
+- Versioned production model artifacts
 
-Acceptable precision (minimize false alerts)
+## Architecture
 
-8Model Comparison
+### Training Pipeline
 
-Two modeling approaches were evaluated:
+`Preprocessing → Feature Scaling → Imbalance Handling → Model Training → Threshold Optimization → MLflow Tracking → Model Versioning`
 
-1. Deep Learning (Neural Network)
+### Deployment Pipeline
 
-BCEWithLogitsLoss with class weighting
+`Versioned Model → FastAPI → Docker → CI/CD → Render`
 
-Threshold tuning using precision-recall curve
+## API Usage
 
-ROC-AUC ≈ 0.82
+### Health Check
 
-2. XGBoost (Final Production Model)
+`GET /`
 
-scale_pos_weight for imbalance handling
+Example response:
 
-Precision-Recall threshold optimization
-
-MLflow experiment tracking
-
-Versioned model artifacts
-
-Final Model Performance (XGBoost)
-
-Precision: 0.79
-
-Recall: 0.61
-
-F1 Score: 0.69
-
-ROC-AUC: 0.993
-
-XGBoost significantly outperformed the neural network for tabular fraud detection data.
-
-*Key Engineering Decisions
-
-Used scale_pos_weight instead of SMOTE to avoid synthetic noise
-
-Optimized decision threshold using F1 from precision-recall curve
-
-Avoided accuracy as a metric due to imbalance
-
-Compared deep learning vs gradient boosting
-
-Selected tree-based model for production deployment
-
-*Architecture
-
-Training Pipeline:
-
-Data preprocessing
-
-Feature scaling
-
-Imbalance handling
-
-Threshold optimization
-
-MLflow experiment tracking
-
-Model versioning
-
-Deployment Pipeline:
-
-FastAPI REST API
-
-Docker containerization
-
-CI/CD via GitHub
-
-Cloud deployment on Render
-
-*API Usage
-Health Check
-
-GET /
-
-Response:
-
+```json
 {
   "status": "Fraud XGBoost API running"
 }
-*Prediction
+```
 
-POST /predict
+### Prediction
 
-Request:
+`POST /predict`
 
+Example request:
+
+```json
 {
-  "features": [ ... 9 numerical values ... ]
+  "features": [0.12, -1.45, 2.33, 0.77, -0.56, 1.12, 0.44, -0.91, 0.35]
 }
+```
 
-Response:
+The endpoint returns a fraud probability and binary prediction.
 
-{
-  "fraud_probability": 0.87,
-  "prediction": 1
-}
-*Project Structure
+## Project Structure
+
+```text
 app/
   main.py               # FastAPI deployment layer
 src/
-  train.py              # Neural network training
-  train_xgb.py          # XGBoost training (production model)
+  train.py              # Neural-network training
+  train_xgb.py          # XGBoost production training
   preprocess.py         # Data processing
   versioning.py         # Model version management
 models/
@@ -154,48 +108,33 @@ models/
   threshold.txt
 Dockerfile
 requirements.txt
-*Technologies Used
+```
 
-Python
+## Technologies
 
-XGBoost
+- Python
+- XGBoost
+- PyTorch
+- Scikit-learn
+- MLflow
+- FastAPI
+- Docker
+- Render
 
-PyTorch (for comparison)
+## What This Project Demonstrates
 
-scikit-learn
+- Handling severe class imbalance
+- Comparing model families instead of assuming one algorithm is best
+- Optimizing classification thresholds for business tradeoffs
+- Experiment tracking with MLflow
+- Version-controlled model artifacts
+- Containerized model serving through FastAPI
+- Cloud deployment workflow
 
-MLflow
+## Future Improvements
 
-FastAPI
-
-Docker
-
-Render (Cloud Deployment)
-
-*What This Project Demonstrates
-
-Handling extreme class imbalance
-
-Model benchmarking and selection
-
-Threshold optimization for real-world tradeoffs
-
-Experiment tracking with MLflow
-
-Version-controlled model artifacts
-
-Containerized ML API
-
-CI/CD deployment workflow
-
-*Future Improvements
-
-Real-time streaming fraud detection (Kafka)
-
-Drift detection and monitoring
-
-Feature store integration
-
-SHAP-based explainability service
-
-Automated retraining pipeline
+- Kafka-based streaming fraud detection
+- Data and prediction drift monitoring
+- Feature-store integration
+- SHAP-based explainability
+- Automated retraining workflow
